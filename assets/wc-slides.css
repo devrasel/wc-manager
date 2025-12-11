@@ -12,17 +12,22 @@
 }
 
 /* Loading State */
+.wc-slides-wrapper.wc-slides-loading {
+    min-height: 250px;
+    max-height: 250px;
+    overflow: hidden;
+}
+
 .wc-slides-wrapper.wc-slides-loading .wc-slides-swiper {
-    opacity: 0;
-    visibility: hidden;
+    display: none;
 }
 
 .wc-slides-wrapper.wc-slides-loading .wc-slides-loader {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100px;
-    max-height: 100px;
+    height: 250px;
+    max-height: 250px;
 }
 
 .wc-slides-wrapper:not(.wc-slides-loading) .wc-slides-loader {

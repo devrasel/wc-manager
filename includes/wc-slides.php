@@ -60,7 +60,7 @@ class WC_Slides_Manager {
             'wc-slides-css',
             plugin_dir_url(dirname(__FILE__)) . 'assets/wc-slides.css',
             ['swiper-css'],
-            '1.0.3'
+            '1.0.5'
         );
         
         // Enqueue Swiper JS
@@ -77,7 +77,7 @@ class WC_Slides_Manager {
             'wc-slides-js',
             plugin_dir_url(dirname(__FILE__)) . 'assets/wc-slides.js',
             ['jquery', 'swiper-js'],
-            '1.0.4',
+            '1.0.6',
             true
         );
         
@@ -135,6 +135,7 @@ class WC_Slides_Manager {
         $user_atts = $atts;
         
         $atts = shortcode_atts([
+            'type' => '',
             'product' => '',
             'variation' => '',
             'cat' => '',
@@ -160,6 +161,7 @@ class WC_Slides_Manager {
             if ($preset) {
                 // Start with defaults
                 $defaults = [
+                    'type' => '',
                     'product' => '',
                     'variation' => '',
                     'cat' => '',
@@ -302,6 +304,19 @@ class WC_Slides_Manager {
             'order' => 'DESC',
         ];
         
+        // Handle product type (latest or popular)
+        if (!empty($atts['type'])) {
+            $type = strtolower($atts['type']);
+            if ($type === 'latest') {
+                $args['orderby'] = 'date';
+                $args['order'] = 'DESC';
+            } elseif ($type === 'popular') {
+                $args['meta_key'] = 'total_sales';
+                $args['orderby'] = 'meta_value_num';
+                $args['order'] = 'DESC';
+            }
+        }
+        
         // Filter by specific product IDs
         if (!empty($atts['product'])) {
             $product_ids = array_map('intval', explode(',', $atts['product']));
@@ -415,6 +430,9 @@ class WC_Slides_Manager {
         
         if (isset($preset['filters'])) {
             $flat['number'] = $preset['filters']['number'] ?? 10;
+            if (!empty($preset['filters']['type'])) {
+                $flat['type'] = $preset['filters']['type'];
+            }
             if (!empty($preset['filters']['products'])) {
                 $flat['product'] = implode(',', $preset['filters']['products']);
             }
@@ -521,6 +539,15 @@ class WC_Slides_Manager {
                     
                     <div class="wc-slides-generator">
                         <div class="wc-slides-form-row">
+                            <label><?php echo __('Product Type', 'wc-manager'); ?></label>
+                            <select id="gen-type">
+                                <option value=""><?php echo __('None (Manual Selection)', 'wc-manager'); ?></option>
+                                <option value="latest"><?php echo __('Latest Products', 'wc-manager'); ?></option>
+                                <option value="popular"><?php echo __('Popular Products', 'wc-manager'); ?></option>
+                            </select>
+                        </div>
+                        
+                        <div class="wc-slides-form-row">
                             <label><?php echo __('Product IDs (comma-separated)', 'wc-manager'); ?></label>
                             <input type="text" id="gen-product" placeholder="68,69,70">
                         </div>
@@ -616,6 +643,11 @@ class WC_Slides_Manager {
                         </thead>
                         <tbody>
                             <tr>
+                                <td><code>type</code></td>
+                                <td><?php echo __('Product type filter (latest/popular)', 'wc-manager'); ?></td>
+                                <td><code>type="latest"</code> or <code>type="popular"</code></td>
+                            </tr>
+                            <tr>
                                 <td><code>product</code></td>
                                 <td><?php echo __('Specific product IDs (comma-separated)', 'wc-manager'); ?></td>
                                 <td><code>product="68,69,70"</code></td>
@@ -670,6 +702,8 @@ class WC_Slides_Manager {
                     
                     <h3><?php echo __('Usage Examples', 'wc-manager'); ?></h3>
                     <pre><code>[re_slides]</code> - <?php echo __('Show all products', 'wc-manager'); ?></pre>
+                    <pre><code>[re_slides type="latest" number=10]</code> - <?php echo __('Show 10 latest products', 'wc-manager'); ?></pre>
+                    <pre><code>[re_slides type="popular" number=8]</code> - <?php echo __('Show 8 most popular products', 'wc-manager'); ?></pre>
                     <pre><code>[re_slides product="68,69,70"]</code> - <?php echo __('Show specific products', 'wc-manager'); ?></pre>
                     <pre><code>[re_slides cat="1205" number=10]</code> - <?php echo __('Show 10 products from category', 'wc-manager'); ?></pre>
                     <pre><code>[re_slides tag="new" autoplay=3000]</code> - <?php echo __('Show products with tag, autoplay every 3 seconds', 'wc-manager'); ?></pre>
@@ -693,6 +727,14 @@ class WC_Slides_Manager {
                 
                 <div class="wc-slides-modal-section">
                     <h3><?php echo __('Product Filters', 'wc-manager'); ?></h3>
+                    <div class="wc-slides-form-row">
+                        <label><?php echo __('Product Type', 'wc-manager'); ?></label>
+                        <select id="preset-type" name="type">
+                            <option value=""><?php echo __('None (Manual Selection)', 'wc-manager'); ?></option>
+                            <option value="latest"><?php echo __('Latest Products', 'wc-manager'); ?></option>
+                            <option value="popular"><?php echo __('Popular Products', 'wc-manager'); ?></option>
+                        </select>
+                    </div>
                     <div class="wc-slides-form-row">
                         <label><?php echo __('Product IDs (comma-separated)', 'wc-manager'); ?></label>
                         <input type="text" id="preset-products" name="products" placeholder="68,69,70">
@@ -813,6 +855,7 @@ class WC_Slides_Manager {
         $preset_data = [
             'name' => sanitize_text_field($_POST['name']),
             'filters' => [
+                'type' => sanitize_text_field($_POST['type'] ?? ''),
                 'products' => !empty($_POST['products']) ? array_map('intval', explode(',', $_POST['products'])) : [],
                 'categories' => !empty($_POST['categories']) ? array_map('intval', explode(',', $_POST['categories'])) : [],
                 'tags' => !empty($_POST['tags']) ? array_map('trim', explode(',', $_POST['tags'])) : [],

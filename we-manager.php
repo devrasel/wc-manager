@@ -69,53 +69,68 @@ class WCCCF_Enhanced {
     
     /** @var WC_Slides_Manager Slides manager handler */
     public $slides_manager;
+    
     public function __construct() {
-        // Include the new discount functionality
-        require_once plugin_dir_path(__FILE__) . 'includes/auto-discount.php';
-        $this->auto_discount = new WCCCF_Auto_Discount();
+        // Get active modules
+        $active_modules = get_option('wc_manager_active_modules', [
+            'checkout_fields' => 1,
+            'discount_manager' => 1,
+            'wc_popups' => 0,
+            'wc_slides' => 0,
+        ]);
 
-        // Include the new quantity selector functionality
+        // Load Discount Manager if active
+        if (!empty($active_modules['discount_manager'])) {
+            require_once plugin_dir_path(__FILE__) . 'includes/auto-discount.php';
+            $this->auto_discount = new WCCCF_Auto_Discount();
+        }
+
+        // Always load quantity selector (not a separate module)
         require_once plugin_dir_path(__FILE__) . 'includes/quantity-selector.php';
         new WCCCF_Quantity_Selector();
 
-        // Include the branch selection functionality
-        require_once plugin_dir_path(__FILE__) . 'includes/wc-branch-selection.php';
-        $this->branch_selector = new WC_Branch_Selector_Manager();
+        // Load WC Popups (Branch Selection) if active
+        if (!empty($active_modules['wc_popups'])) {
+            require_once plugin_dir_path(__FILE__) . 'includes/wc-branch-selection.php';
+            $this->branch_selector = new WC_Branch_Selector_Manager();
+        }
 
-        // Include the WC Slides functionality
-        require_once plugin_dir_path(__FILE__) . 'includes/wc-slides.php';
-        $this->slides_manager = new WC_Slides_Manager();
+        // Load WC Slides if active
+        if (!empty($active_modules['wc_slides'])) {
+            require_once plugin_dir_path(__FILE__) . 'includes/wc-slides.php';
+            $this->slides_manager = new WC_Slides_Manager();
+        }
 
-       // Include the checkout fields manager
-       // require_once plugin_dir_path(__FILE__) . 'includes/wc-checkout-fields-manager.php';
-       // $this->checkout_fields_manager = new WCCCF_Checkout_Fields_Manager();
-
+        // Core menu and settings - always load
         add_action('admin_menu', [$this, 'add_settings_page']);
         add_action('admin_init', [$this, 'register_settings']);
         add_action('admin_init', [$this, 'handle_export_import']);
         
-        // AJAX handlers - must be registered early
-        add_action('wp_ajax_wcccf_delete_field', [$this, 'ajax_delete_field']);
-        add_action('wp_ajax_wcccf_get_field', [$this, 'ajax_get_field']);
-        add_action('wp_ajax_wcccf_save_field', [$this, 'ajax_save_field']);
+        // Checkout Fields functionality - only if active
+        if (!empty($active_modules['checkout_fields'])) {
+            // AJAX handlers
+            add_action('wp_ajax_wcccf_delete_field', [$this, 'ajax_delete_field']);
+            add_action('wp_ajax_wcccf_get_field', [$this, 'ajax_get_field']);
+            add_action('wp_ajax_wcccf_save_field', [$this, 'ajax_save_field']);
 
-        add_filter('woocommerce_checkout_fields', [$this, 'add_custom_checkout_fields']);
-        add_filter('woocommerce_checkout_fields', [$this, 'modify_default_fields'], 20);
-        add_action('woocommerce_checkout_process', [$this, 'validate_custom_checkout_fields']);
-        add_action('woocommerce_checkout_update_order_meta', [$this, 'save_custom_checkout_fields']);
-        
-        // Display hooks
-        add_action('woocommerce_admin_order_data_after_billing_address', [$this, 'show_field_in_admin']);
-        add_action('woocommerce_order_details_after_order_table', [$this, 'show_field_on_thank_you_page']);
-        add_action('woocommerce_view_order', [$this, 'show_field_on_customer_order_page'], 20);
-        add_action('woocommerce_email_order_meta', [$this, 'add_fields_to_email'], 20, 3);
-        add_filter('woocommerce_form_field_multiselect', [$this, 'render_multiselect_field'], 10, 4);
+            add_filter('woocommerce_checkout_fields', [$this, 'add_custom_checkout_fields']);
+            add_filter('woocommerce_checkout_fields', [$this, 'modify_default_fields'], 20);
+            add_action('woocommerce_checkout_process', [$this, 'validate_custom_checkout_fields']);
+            add_action('woocommerce_checkout_update_order_meta', [$this, 'save_custom_checkout_fields']);
+            
+            // Display hooks
+            add_action('woocommerce_admin_order_data_after_billing_address', [$this, 'show_field_in_admin']);
+            add_action('woocommerce_order_details_after_order_table', [$this, 'show_field_on_thank_you_page']);
+            add_action('woocommerce_view_order', [$this, 'show_field_on_customer_order_page'], 20);
+            add_action('woocommerce_email_order_meta', [$this, 'add_fields_to_email'], 20, 3);
+            add_filter('woocommerce_form_field_multiselect', [$this, 'render_multiselect_field'], 10, 4);
+
+            // Enqueue frontend scripts for checkout
+            add_action('wp_enqueue_scripts', [$this, 'frontend_scripts']);
+        }
 
         // Enqueue admin scripts
         add_action('admin_enqueue_scripts', [$this, 'admin_scripts']);
-
-        // Enqueue frontend scripts
-        add_action('wp_enqueue_scripts', [$this, 'frontend_scripts']);
         add_filter('plugin_action_links_' . plugin_basename(__FILE__), [$this, 'add_action_links']);
     }
 
@@ -168,54 +183,89 @@ class WCCCF_Enhanced {
     }
 
     public function add_settings_page() {
+        // Get active modules
+        $active_modules = get_option('wc_manager_active_modules', [
+            'checkout_fields' => 1,
+            'discount_manager' => 1,
+            'wc_popups' => 0,
+            'wc_slides' => 0,
+        ]);
+
+        // Determine the callback for the main menu item
+        // If checkout_fields is active, use it; otherwise use module settings
+        $main_callback = !empty($active_modules['checkout_fields']) 
+            ? [$this, 'settings_page_html'] 
+            : [$this, 'module_settings_page_html'];
+
         add_menu_page(
             'WC Manager Settings',
             'WC Manager',
             'manage_options',
             'wc-custom-checkout-field',
-            [$this, 'settings_page_html'],
+            $main_callback,
             'dashicons-cart',
             55
         );
 
+        // Checkout Fields - Show if active
+        if (!empty($active_modules['checkout_fields'])) {
+            add_submenu_page(
+                'wc-custom-checkout-field',
+                'Checkout Fields',
+                'Checkout Fields',
+                'manage_options',
+                'wc-custom-checkout-field',
+                [$this, 'settings_page_html']
+            );
+        }
+
+        // Discount Manager - Show if active
+        if (!empty($active_modules['discount_manager'])) {
+            add_submenu_page(
+                'wc-custom-checkout-field',
+                'Discount Manager',
+                'Discount Manager',
+                'manage_options',
+                'wcccf-auto-discount',
+                [$this, 'auto_discount_page_html']
+            );
+        }
+
+        // WC Popup - Show if active
+        if (!empty($active_modules['wc_popups']) && isset($this->branch_selector)) {
+            add_submenu_page(
+                'wc-custom-checkout-field',
+                'WC Popup',
+                'WC Popup',
+                'manage_options',
+                'wc-popup',
+                [$this->branch_selector, 'branch_selector_admin_page_html']
+            );
+        }
+
+        // WC Slides - Show if active
+        if (!empty($active_modules['wc_slides']) && isset($this->slides_manager)) {
+            add_submenu_page(
+                'wc-custom-checkout-field',
+                'WC Slides',
+                'WC Slides',
+                'manage_options',
+                'wc-slides',
+                [$this->slides_manager, 'admin_page_html']
+            );
+        }
+
+        // Module Settings - Always show
         add_submenu_page(
             'wc-custom-checkout-field',
-            'Checkout Fields',
-            'Checkout Fields',
+            'Modules',
+            'Modules',
             'manage_options',
-            'wc-custom-checkout-field',
-            [$this, 'settings_page_html']
+            'wc-manager-modules',
+            [$this, 'module_settings_page_html']
         );
 
-        // Redundant submenu removed
-
-        add_submenu_page(
-            'wc-custom-checkout-field',
-            'Discount Manager',
-            'Discount Manager',
-            'manage_options',
-            'wcccf-auto-discount',
-            [$this, 'auto_discount_page_html']
-        );
-
-        add_submenu_page(
-            'wc-custom-checkout-field',
-            'WC Popup',
-            'WC Popup',
-            'manage_options',
-            'wc-popup',
-            [$this->branch_selector, 'branch_selector_admin_page_html']
-        );
-
-        add_submenu_page(
-            'wc-custom-checkout-field',
-            'WC Slides',
-            'WC Slides',
-            'manage_options',
-            'wc-slides',
-            [$this->slides_manager, 'admin_page_html']
-        );
-
+        // Import/Export Settings - Always show
         add_submenu_page(
             'wc-custom-checkout-field',
             'Settings',
@@ -228,6 +278,11 @@ class WCCCF_Enhanced {
 
     public function register_settings() {
         register_setting('wcccf_settings_group', 'wcccf_custom_fields');
+        
+        // Register module settings
+        register_setting('wc_manager_modules_group', 'wc_manager_active_modules', [
+            'sanitize_callback' => [$this, 'sanitize_module_settings']
+        ]);
         
         // Register disabled fields with its own callback
         register_setting('wcccf_default_fields_group', 'wcccf_disabled_fields', [$this, 'sanitize_disabled_fields']);
@@ -280,6 +335,29 @@ class WCCCF_Enhanced {
             'updated'
         );
         return $input;
+    }
+
+    public function sanitize_module_settings($input) {
+        if (!is_array($input)) {
+            $input = [];
+        }
+        
+        // Ensure all modules have a value (0 or 1)
+        $sanitized = [
+            'checkout_fields' => !empty($input['checkout_fields']) ? 1 : 0,
+            'discount_manager' => !empty($input['discount_manager']) ? 1 : 0,
+            'wc_popups' => !empty($input['wc_popups']) ? 1 : 0,
+            'wc_slides' => !empty($input['wc_slides']) ? 1 : 0,
+        ];
+        
+        add_settings_error(
+            'wc_manager_modules_group',
+            'settings_updated',
+            __('Module settings saved successfully.', 'wc-manager'),
+            'updated'
+        );
+        
+        return $sanitized;
     }
 
     public function ajax_delete_field() {
@@ -1801,6 +1879,93 @@ class WCCCF_Enhanced {
         ];
 
         return $fields;
+    }
+
+    public function module_settings_page_html() {
+        $active_modules = get_option('wc_manager_active_modules', [
+            'checkout_fields' => 1,
+            'discount_manager' => 1,
+            'wc_popups' => 0,
+            'wc_slides' => 0,
+        ]);
+        ?>
+        <div class="wrap">
+            <h1><?php _e('WC Manager - Module Settings', 'wc-manager'); ?></h1>
+            
+            <?php settings_errors(); ?>
+            
+            <div class="card">
+                <h2><?php _e('Active Modules', 'wc-manager'); ?></h2>
+                <p><?php _e('Enable or disable modules to show/hide their menu items. Inactive modules will not appear in the WC Manager submenu.', 'wc-manager'); ?></p>
+                
+                <form method="post" action="options.php">
+                    <?php settings_fields('wc_manager_modules_group'); ?>
+                    
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><?php _e('Checkout Fields', 'wc-manager'); ?></th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="wc_manager_active_modules[checkout_fields]" value="1" <?php checked(!empty($active_modules['checkout_fields'])); ?>>
+                                    <?php _e('Enable Checkout Fields module', 'wc-manager'); ?>
+                                </label>
+                                <p class="description"><?php _e('Manage custom checkout fields and default field settings.', 'wc-manager'); ?></p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row"><?php _e('Discount Manager', 'wc-manager'); ?></th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="wc_manager_active_modules[discount_manager]" value="1" <?php checked(!empty($active_modules['discount_manager'])); ?>>
+                                    <?php _e('Enable Discount Manager module', 'wc-manager'); ?>
+                                </label>
+                                <p class="description"><?php _e('Create and manage automatic discount rules.', 'wc-manager'); ?></p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row"><?php _e('WC Popups', 'wc-manager'); ?></th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="wc_manager_active_modules[wc_popups]" value="1" <?php checked(!empty($active_modules['wc_popups'])); ?>>
+                                    <?php _e('Enable WC Popups module', 'wc-manager'); ?>
+                                </label>
+                                <p class="description"><?php _e('Manage popups and branch selectors.', 'wc-manager'); ?></p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row"><?php _e('WC Slides', 'wc-manager'); ?></th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="wc_manager_active_modules[wc_slides]" value="1" <?php checked(!empty($active_modules['wc_slides'])); ?>>
+                                    <?php _e('Enable WC Slides module', 'wc-manager'); ?>
+                                </label>
+                                <p class="description"><?php _e('Create product sliders with customizable settings and presets.', 'wc-manager'); ?></p>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <?php submit_button(__('Save Module Settings', 'wc-manager')); ?>
+                </form>
+            </div>
+            
+            <style>
+                .form-table th {
+                    width: 200px;
+                    font-weight: 600;
+                }
+                .form-table td label {
+                    font-weight: 500;
+                }
+                .form-table .description {
+                    color: #646970;
+                    font-style: italic;
+                }
+            </style>
+        </div>
+        <?php
     }
 
     public function import_export_page_html() {

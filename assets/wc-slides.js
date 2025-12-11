@@ -73,25 +73,57 @@
                 };
             }
 
-            // Add init callback to remove loading state
+            // Preload check: Remove loading state when images start loading
+            const $images = $wrapper.find('.wc-slides-product-image img');
+            if ($images.length > 0) {
+                let imagesChecked = 0;
+                $images.each(function () {
+                    // Check if image is already cached/loaded
+                    if (this.complete || this.naturalHeight > 0) {
+                        imagesChecked++;
+                    }
+                });
+
+                // If at least one image is ready, remove loading faster
+                if (imagesChecked > 0) {
+                    setTimeout(function () {
+                        $wrapper.removeClass('wc-slides-loading');
+                    }, 50);
+                }
+            }
+
+            // Add callbacks to remove loading state
             config.on = {
                 init: function () {
                     // Remove loading class when slider is initialized
+                    setTimeout(function () {
+                        $wrapper.removeClass('wc-slides-loading');
+                    }, 100);
+                },
+                afterInit: function () {
+                    // Backup removal
                     $wrapper.removeClass('wc-slides-loading');
                 }
             };
 
-            // Fallback: Remove loading state after 3 seconds if not initialized
+            // Fallback: Remove loading state after 1 second if not initialized
             setTimeout(function () {
                 if ($wrapper.hasClass('wc-slides-loading')) {
                     console.warn('WC Slides: Timeout - removing loading state for', sliderId);
                     $wrapper.removeClass('wc-slides-loading');
                 }
-            }, 3000);
+            }, 1000);
 
             // Initialize Swiper
             try {
-                new Swiper(swiperContainer, config);
+                const swiperInstance = new Swiper(swiperContainer, config);
+
+                // Immediately remove loading if initialization is successful
+                if (swiperInstance && swiperInstance.initialized) {
+                    setTimeout(function () {
+                        $wrapper.removeClass('wc-slides-loading');
+                    }, 100);
+                }
             } catch (error) {
                 console.error('WC Slides: Error initializing slider', sliderId, error);
                 // Remove loading class even on error

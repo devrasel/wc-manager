@@ -93,6 +93,7 @@
             nonce: wcSlidesAdmin.nonce,
             preset_id: $('#preset-id').val(),
             name: presetName,
+            type: $('#preset-type').val(),
             products: $('#preset-products').val(),
             categories: $('#preset-categories').val(),
             tags: $('#preset-tags').val(),
@@ -307,6 +308,7 @@
 
         // Filters
         if (preset.filters) {
+            $('#preset-type').val(preset.filters.type || '');
             $('#preset-products').val(preset.filters.products ? preset.filters.products.join(',') : '');
             $('#preset-categories').val(preset.filters.categories ? preset.filters.categories.join(',') : '');
             $('#preset-tags').val(preset.filters.tags ? preset.filters.tags.join(',') : '');
@@ -351,6 +353,9 @@
     function setupShortcodeGenerator() {
         $('#wc-slides-generate-shortcode').on('click', function () {
             const parts = ['[re_slides'];
+
+            const type = $('#gen-type').val().trim();
+            if (type) parts.push('type="' + type + '"');
 
             const product = $('#gen-product').val().trim();
             if (product) parts.push('product="' + product + '"');
