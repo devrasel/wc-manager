@@ -155,7 +155,21 @@ class WCCCF_Enhanced {
                 });
             ");
             
-            $custom_css = ".select2-container .select2-selection--multiple .select2-selection__rendered { margin: 0; }";
+            // CSS for Select2 and hidden critical fields
+            $custom_css = "
+                .select2-container .select2-selection--multiple .select2-selection__rendered { 
+                    margin: 0; 
+                }
+                
+                /* Hide disabled critical WooCommerce fields */
+                .wcccf-hidden-field {
+                    display: none !important;
+                    visibility: hidden !important;
+                    height: 0 !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+            ";
             wp_add_inline_style('select2', $custom_css);
         }
     }
@@ -1432,9 +1446,35 @@ class WCCCF_Enhanced {
                             $fields[$section][$field_key]['class'] = array_merge($existing_classes, $new_classes);
                         }
                         
-                        // Remove if disabled
+                        // Handle disabled fields
                         if (isset($disabled_fields[$field_key]) && $disabled_fields[$field_key]) {
-                            unset($fields[$section][$field_key]);
+                            // Define WooCommerce critical fields that cannot be completely removed
+                            // These fields are required for checkout validation to pass
+                            $wc_critical_fields = [
+                                'billing_country',
+                                'billing_address_1',
+                                'billing_city',
+                                'billing_postcode',
+                                'billing_state',
+                                'shipping_country',
+                                'shipping_address_1',
+                                'shipping_city',
+                                'shipping_postcode',
+                                'shipping_state',
+                            ];
+                            
+                            if (in_array($field_key, $wc_critical_fields)) {
+                                // For critical fields: hide with CSS, make not required, set default value
+                                $fields[$section][$field_key]['required'] = false;
+                                $fields[$section][$field_key]['class'][] = 'wcccf-hidden-field';
+                                $fields[$section][$field_key]['default'] = '';
+                                
+                                // Add validation bypass class
+                                $fields[$section][$field_key]['class'][] = 'wcccf-disabled-critical';
+                            } else {
+                                // For non-critical fields: remove completely (original behavior)
+                                unset($fields[$section][$field_key]);
+                            }
                         }
                     }
                 }
