@@ -1552,6 +1552,12 @@ class WCCCF_Enhanced {
 
     public function save_custom_checkout_fields($order_id) {
         $custom_fields = get_option('wcccf_custom_fields', []);
+        
+        // Ensure we have an array
+        if (!is_array($custom_fields)) {
+            return;
+        }
+        
         foreach ($custom_fields as $index => $field) {
             $field_name = 'wcccf_field_' . $index;
             if (isset($_POST[$field_name])) {
@@ -1574,6 +1580,12 @@ class WCCCF_Enhanced {
         echo '<h3>' . __('Custom Checkout Fields', 'woocommerce') . '</h3>';
         
         $custom_fields = get_option('wcccf_custom_fields', []);
+        
+        // Ensure we have an array
+        if (!is_array($custom_fields)) {
+            $custom_fields = [];
+        }
+        
         $found_fields = false;
         
         foreach ($custom_fields as $index => $field) {
@@ -1612,6 +1624,12 @@ class WCCCF_Enhanced {
 
     private function display_fields_table($order, $title, $customer_page = false) {
         $custom_fields = get_option('wcccf_custom_fields', []);
+        
+        // Ensure we have an array
+        if (!is_array($custom_fields)) {
+            return;
+        }
+        
         $fields_html = '';
         
         foreach ($custom_fields as $index => $field) {
@@ -1640,6 +1658,12 @@ class WCCCF_Enhanced {
 
     public function add_fields_to_email($order, $sent_to_admin, $plain_text) {
         $custom_fields = get_option('wcccf_custom_fields', []);
+        
+        // Ensure we have an array
+        if (!is_array($custom_fields)) {
+            return;
+        }
+        
         $fields_data = [];
         
         foreach ($custom_fields as $index => $field) {
